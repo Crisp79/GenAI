@@ -1,3 +1,5 @@
+# GEN AI - ASSIGNMENT 1
+
 ### 1. Data Acquisition and Cleaning
 - **Download the Dataset**: Use `kagglehub` to download the "glasses-or-no-glasses" dataset from Kaggle.
 - **Identify and Correct Labels**: Visualize the images alongside their labels to identify any that are mislabelled. You must correct the dataset as necessary. While `matplotlib` or `cv2` are commonly used for this, they are not strictly required.
