@@ -10,7 +10,6 @@ wheels/
 .venv
 
 *.pdf
-data/
-
-outputs/
+/data/raw/
+/data/processed_128
 *.png
