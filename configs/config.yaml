@@ -1,0 +1,14 @@
+image_size: 64
+batch_size: 32
+epochs: 10
+latent_dim: 128
+kernel_sizes: [3, 5, 7]
+learning_rate: 0.001
+
+paths:
+  data: ./data
+  processed: ./data/processed_64
+  labels: ./data/labels.csv
+  outputs: ./outputs
+
+device: cuda
