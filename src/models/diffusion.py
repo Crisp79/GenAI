@@ -124,13 +124,13 @@ class UNet(nn.Module):
 # Diffusion Model Wrapper
 # =========================================================
 class DiffusionModel:
-    def __init__(self, device="cuda", timesteps=1000, img_size=64):
+    def __init__(self, device="cuda", timesteps=1000, img_size=64, beta_start=1e-4, beta_end=0.02):
         self.device   = device
         self.T        = timesteps
         self.img_size = img_size
 
-        # Noise schedule
-        self.beta      = torch.linspace(1e-4, 0.02, self.T).to(device)
+        # Noise schedule (beta_start and beta_end are now configurable)
+        self.beta      = torch.linspace(beta_start, beta_end, self.T).to(device)
         self.alpha     = 1.0 - self.beta
         self.alpha_hat = torch.cumprod(self.alpha, dim=0)
 

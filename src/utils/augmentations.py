@@ -1,3 +1,4 @@
+
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
@@ -57,3 +58,14 @@ def get_test_transform(size):
         ),
         ToTensorV2()
     ])
+
+
+def denormalize(tensor):
+    """
+    Reverses normalization (mean=0.5, std=0.5) for display or saving.
+    Args:
+        tensor: torch.Tensor, shape (..., C, H, W) or (C, H, W), values in [-1, 1]
+    Returns:
+        torch.Tensor, values in [0, 1]
+    """
+    return tensor * 0.5 + 0.5
