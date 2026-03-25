@@ -9,9 +9,8 @@ from torch.utils.data import DataLoader
 import torchvision
 
 
-# =========================================================
 # Time Embedding
-# =========================================================
+
 class TimeEmbedding(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -32,9 +31,8 @@ class TimeEmbedding(nn.Module):
         return self.proj(emb)
 
 
-# =========================================================
 # Residual Block
-# =========================================================
+
 class ResBlock(nn.Module):
     def __init__(self, in_c, out_c, time_dim):
         super().__init__()
@@ -119,10 +117,8 @@ class UNet(nn.Module):
 
         return self.out_conv(F.silu(self.out_norm(u)))
 
+# Diffusion Model with EMA and Configurable Noise Schedule
 
-# =========================================================
-# Diffusion Model Wrapper
-# =========================================================
 class DiffusionModel:
     def __init__(self, device="cuda", timesteps=1000, img_size=64, beta_start=1e-4, beta_end=0.02):
         self.device   = device
@@ -138,21 +134,18 @@ class DiffusionModel:
         self.model     = UNet().to(device)
         self.ema_model = copy.deepcopy(self.model).eval()
 
-    # --------------------------------------------------
     def forward_diffusion(self, x, t):
         noise = torch.randn_like(x)
         a_hat = self.alpha_hat[t].view(-1, 1, 1, 1)
         x_t   = torch.sqrt(a_hat) * x + torch.sqrt(1 - a_hat) * noise
         return x_t, noise
 
-    # --------------------------------------------------
     def update_ema(self, decay=0.995):
         with torch.no_grad():
             for ema_p, p in zip(self.ema_model.parameters(),
                                 self.model.parameters()):
                 ema_p.data = decay * ema_p.data + (1 - decay) * p.data
 
-    # --------------------------------------------------
     def fit(self, dataloader, epochs=100, lr=1e-4):
         self.model.train()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
@@ -204,67 +197,3 @@ class DiffusionModel:
             ) + torch.sqrt(beta_tilde) * noise
 
         return x   # [-1, 1]
-
-
-# =========================================================
-# Train Example
-# =========================================================
-def train_example(data_dir="./faces", checkpoint="ddpm_faces.pth"):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
-
-    transform = transforms.Compose([
-        transforms.Resize((64, 64)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ])
-
-    # faces/ must contain one subfolder, e.g. faces/all/img.jpg
-    dataset    = datasets.ImageFolder(root=data_dir, transform=transform)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True,
-                            num_workers=2, pin_memory=True)
-
-    model = DiffusionModel(device=device, timesteps=1000, img_size=64)
-    model.fit(dataloader, epochs=200, lr=1e-4)
-
-    torch.save({"model": model.model.state_dict(),
-                "ema_model": model.ema_model.state_dict()}, checkpoint)
-    print(f"Saved → {checkpoint}")
-
-
-# =========================================================
-# Sample Example
-# =========================================================
-def sample_example(checkpoint="ddpm_faces.pth"):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    model = DiffusionModel(device=device, timesteps=1000, img_size=64)
-    ckpt  = torch.load(checkpoint, map_location=device)
-    model.model.load_state_dict(ckpt["model"])
-    model.ema_model.load_state_dict(ckpt["ema_model"])
-
-    samples = model.sample(n=16, use_ema=True)
-    samples = (samples.clamp(-1, 1) + 1) / 2
-    grid    = torchvision.utils.make_grid(samples, nrow=4, padding=2)
-    torchvision.utils.save_image(grid, "samples.png")
-    print("Saved → samples.png")
-    return samples
-
-
-# =========================================================
-# Entry Point
-# =========================================================
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mode",       choices=["train", "sample"], default="train")
-    parser.add_argument("--data_dir",   default="./faces")
-    parser.add_argument("--checkpoint", default="ddpm_faces.pth")
-    args = parser.parse_args()
-
-    if args.mode == "train":
-        train_example(args.data_dir, args.checkpoint)
-    else:
-        sample_example(args.checkpoint)
