@@ -2,24 +2,44 @@ import torch
 import torch.nn as nn
 
 
-# 🔷 Residual Block
+def _get_activation(activation):
+    activation = activation.lower()
+    if activation == "relu":
+        return nn.ReLU()
+    if activation == "leaky_relu":
+        return nn.LeakyReLU(0.2)
+    if activation == "gelu":
+        return nn.GELU()
+    if activation == "elu":
+        return nn.ELU()
+    if activation == "silu":
+        return nn.SiLU()
+
+    raise ValueError(
+        "Unsupported activation. Choose from: "
+        "relu, leaky_relu, gelu, elu, silu"
+    )
+
+
+#  Residual Block
 class ResBlock(nn.Module):
-    def __init__(self, channels):
+    def __init__(self, channels, activation="relu"):
         super().__init__()
         self.conv1 = nn.Conv2d(channels, channels, 3, 1, 1)
         self.conv2 = nn.Conv2d(channels, channels, 3, 1, 1)
-        self.relu = nn.ReLU()
+        self.act = _get_activation(activation)
 
     def forward(self, x):
-        out = self.relu(self.conv1(x))
+        out = self.act(self.conv1(x))
         out = self.conv2(out)
         return x + out
 
 
-# 🔷 Encoder
+#  Encoder
 class Encoder(nn.Module):
     def __init__(self, in_channels, hidden_dims, latent_dim,
-                 kernel_size, stride, padding, use_residual, input_size):
+                 kernel_size, stride, padding, use_residual, input_size,
+                 activation="relu"):
         super().__init__()
 
         layers = []
@@ -27,17 +47,17 @@ class Encoder(nn.Module):
 
         for h in hidden_dims:
             layers.append(nn.Conv2d(c, h, kernel_size, stride, padding))
-            layers.append(nn.ReLU())
+            layers.append(_get_activation(activation))
 
             if use_residual:
-                layers.append(ResBlock(h))
+                layers.append(ResBlock(h, activation=activation))
 
             c = h
 
         self.conv = nn.Sequential(*layers)
         self.flatten = nn.Flatten()
 
-        # 🔥 auto compute shape
+        #  auto compute shape
         with torch.no_grad():
             dummy = torch.zeros(1, in_channels, input_size, input_size)
             out = self.conv(dummy)
@@ -53,10 +73,11 @@ class Encoder(nn.Module):
         return self.fc_mu(x), self.fc_logvar(x)
 
 
-# 🔷 Decoder
+#  Decoder
 class Decoder(nn.Module):
     def __init__(self, feature_shape, hidden_dims, latent_dim,
-                 kernel_size, stride, padding, use_residual):
+                 kernel_size, stride, padding, use_residual,
+                 activation="relu"):
         super().__init__()
 
         hidden_dims = hidden_dims[::-1]
@@ -70,10 +91,10 @@ class Decoder(nn.Module):
                 nn.ConvTranspose2d(hidden_dims[i], hidden_dims[i+1],
                                    kernel_size, stride, padding)
             )
-            layers.append(nn.ReLU())
+            layers.append(_get_activation(activation))
 
             if use_residual:
-                layers.append(ResBlock(hidden_dims[i+1]))
+                layers.append(ResBlock(hidden_dims[i+1], activation=activation))
 
         self.deconv = nn.Sequential(*layers)
 
@@ -90,7 +111,7 @@ class Decoder(nn.Module):
         return self.final(x)
 
 
-# 🔷 VAE
+#  VAE
 class VAE(nn.Module):
     def __init__(
         self,
@@ -101,20 +122,23 @@ class VAE(nn.Module):
         padding=1,
         use_residual=False,
         input_size=64,
+        activation="relu",
     ):
         super().__init__()
 
         self.encoder = Encoder(
             3, hidden_dims, latent_dim,
             kernel_size, stride, padding,
-            use_residual, input_size
+            use_residual, input_size,
+            activation=activation,
         )
 
         self.decoder = Decoder(
             self.encoder.feature_shape,
             hidden_dims, latent_dim,
             kernel_size, stride, padding,
-            use_residual
+            use_residual,
+            activation=activation,
         )
 
     def reparameterize(self, mu, logvar):
